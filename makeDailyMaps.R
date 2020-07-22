@@ -13,10 +13,10 @@ library(RCurl)
 library(rtweet)
 library(sf)
 library(withr)
-#Sys.setenv(PATH = with_path('/projects/covid19/bin', Sys.getenv("PATH")))
+Sys.setenv(PATH = with_path('/projects/covid19/bin', Sys.getenv("PATH")))
 
 
-#get_token()
+get_token()
 
 args = commandArgs(trailingOnly=TRUE)
 current_time <- args[1]
@@ -115,10 +115,10 @@ for ( asc_bias in asc_bias_list ){
             paste0(legendlabs)
           }) 
       maps[[size]] = map
-      #maps[[size]]$dependencies[[1]]$src[1] = "/projects/covid19/COVID19-Event-Risk-Planner/map_data/"
-      maps[[size]]$dependencies[[1]]$src[1] = "/map_data/"
-      #mapshot(map, url = file.path('/projects/covid19/COVID19-Event-Risk-Planner/www/', paste0(asc_bias,'_', size,'.html')))
-      mapshot(map, url = file.path('/www/', paste0(asc_bias,'_', size,'.html')))
+      maps[[size]]$dependencies[[1]]$src[1] = "/projects/covid19/COVID19-Event-Risk-Planner/map_data/"
+      #maps[[size]]$dependencies[[1]]$src[1] = "/map_data/"
+      mapshot(map, url = file.path('/projects/covid19/COVID19-Event-Risk-Planner/www/', paste0(asc_bias,'_', size,'.html')))
+      #mapshot(map, url = file.path('/www/', paste0(asc_bias,'_', size,'.html')))
     } 
     
     saveRDS(object = maps, file = file.path('daily_risk_map', current_time, paste0('riskmaps_',asc_bias,'.rds')))
