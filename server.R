@@ -114,7 +114,7 @@ shinyServer(function(input, output, session) {
   observeEvent(input$event_size_map, {
     output$map_static <- renderUI(
     {
-      tags$iframe(src=paste0("www/",input$asc_bias, "_", input$event_size_map, ".html"),
+      tags$iframe(src=paste0(input$asc_bias, "_", input$event_size_map, ".html"),
         width = 992, height = 500, frameBorder="0")
     }
   )
@@ -123,7 +123,7 @@ shinyServer(function(input, output, session) {
   observeEvent(input$asc_bias, {
     output$map_static <- renderUI(
       {
-        tags$iframe(src=paste0("www/",input$asc_bias, "_", input$event_size_map, ".html"),
+        tags$iframe(src=paste0(input$asc_bias, "_", input$event_size_map, ".html"),
                     width = 992, height = 500, frameBorder="0")
       }
     )
