@@ -13,10 +13,10 @@ library(RCurl)
 library(rtweet)
 library(sf)
 library(withr)
-Sys.setenv(PATH = with_path('/projects/covid19/bin', Sys.getenv("PATH")))
+#Sys.setenv(PATH = with_path('/projects/covid19/bin', Sys.getenv("PATH")))
 
 
-get_token()
+#get_token()
 
 args = commandArgs(trailingOnly=TRUE)
 current_time <- args[1]
@@ -33,10 +33,9 @@ getData <- function() {
   data_past <- data %>%
     filter(date == past_date) %>%
     select(fips = fips, cases_past = cases)
-  data_Nr <<- data_cur %>%
+  data_join <<- data_cur %>%
     inner_join(data_past, by = "fips") %>%
-    inner_join(pop, by = "fips") %>%
-    mutate(Nr = (cases - cases_past) * 10)
+    inner_join(pop, by = "fips") 
   pal <<- colorBin("YlOrRd", bins = c(0, 1, 25, 50, 75, 99, 100))
   legendlabs <<- c("< 1", " 1-25", "25-50", "50-75", "75-99", "> 99" , "No or missing data")
 }
@@ -69,85 +68,100 @@ calc_risk <- function(I, g, pop) {
 
 ######## create and save daily map widgets ########
 event_size <<- c(10, 25, 50, 100, 500, 1000, 5000, 10000)
+asc_bias_list <<- c(2, 5, 10, 15)
 
 getData()
 
-if (dim(data_Nr)[1] > 2600){
-  dir.create(file.path('daily_risk_map', current_time), recursive = T)
-
-  maps = list()
-  for ( size in event_size){
-
-    # riskdt_map <-  data_Nr %>%  
-    #     mutate(risk = if_else(Nr > 0, round(calc_risk(Nr, size, pop)), 0)) %>%
-    #     right_join(county, by = c("fips" = "GEOID"))
-    riskdt <- data_Nr %>% 
-       mutate(risk = if_else(Nr > 10, round(calc_risk(Nr, size, pop)), 0))
+for ( asc_bias in asc_bias_list ){
+  
+  data_Nr <- data_join %>%
+    mutate(Nr = (cases - cases_past) * asc_bias)
+  
+  if (dim(data_Nr)[1] > 2600){
+    dir.create(file.path('daily_risk_map', current_time), recursive = T)
     
-    riskdt_map <- county %>% left_join(riskdt, by = c("GEOID" = "fips"))
+    maps = list()
+    for ( size in event_size ){
+      
+      # riskdt_map <-  data_Nr %>%  
+      #     mutate(risk = if_else(Nr > 0, round(calc_risk(Nr, size, pop)), 0)) %>%
+      #     right_join(county, by = c("fips" = "GEOID"))
+      riskdt <- data_Nr %>% 
+        mutate(risk = if_else(Nr > 10, round(calc_risk(Nr, size, pop)), 0))
+      
+      riskdt_map <- county %>% left_join(riskdt, by = c("GEOID" = "fips"))
+      
+      map <- leaflet() %>%
+        addProviderTiles(providers$CartoDB.Positron) %>%
+        setView(lat = 37.1, lng = -95.7, zoom = 4) %>%
+        addPolygons(
+          data = riskdt_map,
+          color = "#444444", weight = 0.2, smoothFactor = 0.1,
+          opacity = 1.0, fillOpacity = 0.5,
+          fillColor = ~ pal(risk),
+          highlight = highlightOptions(weight = 1),
+          label = maplabs(riskdt_map)
+        ) %>%
+        addPolygons(
+          data = stateline,
+          fill = FALSE, color = "#943b29", weight = 1, smoothFactor = 0.5,
+          opacity = 1.0) %>%
+        addLegend(
+          data = riskdt_map,
+          position = "topright", pal = pal, values = ~risk,
+          title = "Risk Level (%)",
+          opacity = 1,
+          labFormat = function(type, cuts, p) {
+            paste0(legendlabs)
+          }) 
+      maps[[size]] = map
+      #maps[[size]]$dependencies[[1]]$src[1] = "/projects/covid19/COVID19-Event-Risk-Planner/map_data/"
+      maps[[size]]$dependencies[[1]]$src[1] = "/map_data/"
+      #mapshot(map, url = file.path('/projects/covid19/COVID19-Event-Risk-Planner/www/', paste0(asc_bias,'_', size,'.html')))
+      mapshot(map, url = file.path('/www/', paste0(asc_bias,'_', size,'.html')))
+    } 
     
-    map <- leaflet() %>%
-      addProviderTiles(providers$CartoDB.Positron) %>%
-      setView(lat = 37.1, lng = -95.7, zoom = 4) %>%
-      addPolygons(
-        data = riskdt_map,
-        color = "#444444", weight = 0.2, smoothFactor = 0.1,
-        opacity = 1.0, fillOpacity = 0.5,
-        fillColor = ~ pal(risk),
-        highlight = highlightOptions(weight = 1),
-        label = maplabs(riskdt_map)
-      ) %>%
-      addPolygons(
-        data = stateline,
-        fill = FALSE, color = "#943b29", weight = 1, smoothFactor = 0.5,
-        opacity = 1.0) %>%
-      addLegend(
-        data = riskdt_map,
-        position = "topright", pal = pal, values = ~risk,
-        title = "Risk Level (%)",
-        opacity = 1,
-        labFormat = function(type, cuts, p) {
-          paste0(legendlabs)
-        }) 
-    maps[[size]] = map
-    maps[[size]]$dependencies[[1]]$src[1] = "/projects/covid19/COVID19-Event-Risk-Planner/map_data/"
-    mapshot(map, url = file.path('/projects/covid19/COVID19-Event-Risk-Planner/www/', paste0(size,'.html')))
-  } 
-  saveRDS(object = maps, file = file.path('daily_risk_map', current_time, 'riskmaps.rds'))
-  saveRDS(object = maps, file = file.path('daily_risk_map','riskmaps.rds'))
-  print(file.path('/projects/covid19/COVID19-Event-Risk-Planner/daily_risk_map', current_time, 'size_100.png'))
- riskdt <- data_Nr %>%
-       mutate(risk = if_else(Nr > 10, round(calc_risk(Nr, 100, pop)), 0))
-
-    riskdt_map <- county %>% left_join(riskdt, by = c("GEOID" = "fips"))
-
-    map <- leaflet() %>%
-      addProviderTiles(providers$CartoDB.Positron) %>%
-      setView(lat = 37.1, lng = -95.7, zoom = 4) %>%
-      addPolygons(
-        data = riskdt_map,
-        color = "#444444", weight = 0.2, smoothFactor = 0.1,
-        opacity = 1.0, fillOpacity = 1.0,
-        fillColor = ~ pal(risk),
-        highlight = highlightOptions(weight = 1),
-        label = maplabs(riskdt_map)
-      ) %>%
-      addPolygons(
-        data = stateline,
-        fill = FALSE, color = "#943b29", weight = 1, smoothFactor = 0.5,
-        opacity = 1.0) %>%
-      addLegend(
-        data = riskdt_map,
-        position = "topright", pal = pal, values = ~risk,
-        title = "Risk Level (%)",
-        opacity = 1,
-        labFormat = function(type, cuts, p) {
-          paste0(legendlabs)
-        })
+    saveRDS(object = maps, file = file.path('daily_risk_map', current_time, paste0('riskmaps_',asc_bias,'.rds')))
+    saveRDS(object = maps, file = file.path('daily_risk_map', paste0('riskmaps_',asc_bias,'.rds')))
+    print(file.path('/projects/covid19/COVID19-Event-Risk-Planner/daily_risk_map', current_time, 'asc_10_size_100.png'))
     
-    map$dependencies[[1]]$src[1] = "/projects/covid19/COVID19-Event-Risk-Planner/map_data/"
-
-#mapshot(map, file = file.path('/projects/covid19/COVID19-Event-Risk-Planner/daily_risk_map', current_time, 'size_100.png'))
-#  post_tweet(status=paste0("County-level risk estimate update for ", ymd_hms(current_time), ".  Estimated risk that at least 1 person is #COVID19 positive for events or other areas where 100 individuals are in close contact"), media=file.path('daily_risk_map', current_time, 'size_100.png'))
-
+    
+  }
+  
+  riskdt <- data_Nr %>%
+    mutate(risk = if_else(Nr > 10, round(calc_risk(Nr, 100, pop)), 0))
+  
+  riskdt_map <- county %>% left_join(riskdt, by = c("GEOID" = "fips"))
+  
+  map <- leaflet() %>%
+    addProviderTiles(providers$CartoDB.Positron) %>%
+    setView(lat = 37.1, lng = -95.7, zoom = 4) %>%
+    addPolygons(
+      data = riskdt_map,
+      color = "#444444", weight = 0.2, smoothFactor = 0.1,
+      opacity = 1.0, fillOpacity = 1.0,
+      fillColor = ~ pal(risk),
+      highlight = highlightOptions(weight = 1),
+      label = maplabs(riskdt_map)
+    ) %>%
+    addPolygons(
+      data = stateline,
+      fill = FALSE, color = "#943b29", weight = 1, smoothFactor = 0.5,
+      opacity = 1.0) %>%
+    addLegend(
+      data = riskdt_map,
+      position = "topright", pal = pal, values = ~risk,
+      title = "Risk Level (%)",
+      opacity = 1,
+      labFormat = function(type, cuts, p) {
+        paste0(legendlabs)
+      })
+  
+  map$dependencies[[1]]$src[1] = "/projects/covid19/COVID19-Event-Risk-Planner/map_data/"
+  
+  mapshot(map, file = file.path('/projects/covid19/COVID19-Event-Risk-Planner/daily_risk_map', current_time, 'asc_10_size_100.png'))
+  #  post_tweet(status=paste0("County-level risk estimate update for ", ymd_hms(current_time), ".  Estimated risk that at least 1 person is #COVID19 positive for events or other areas where 100 individuals are in close contact"), media=file.path('daily_risk_map', current_time, 'size_100.png'))
 }
+
+
+

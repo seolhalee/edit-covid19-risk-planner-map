@@ -90,7 +90,14 @@ shinyUI(fluidPage(
               choices = c(10, 25, 50, 100, 500, 1000, 5000, 10000),
               selected = 100,
               grid = T
-            )
+            ),
+        shinyWidgets::awesomeRadio(
+          inputId = "asc_bias",
+          label = "Select Ascertainment Bias", 
+          choices = c("2", "5", "10", "15"),
+          selected = "10",
+          status = "warning"
+        )
         # selectizeInput("county_text", 
         #       "Center map on county:", 
         #       choices = NULL),
